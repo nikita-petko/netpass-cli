@@ -1,0 +1,70 @@
+#!/usr/bin/env omake
+
+DefineDefaultRules()
+
+SUPPORTED_TARGETS       =   CTR-T*.Process.MPCore.*
+INCLUDES           += include
+
+# Specify the source code to build.
+SOURCES[]               =
+                            src/np_Main.cpp
+                            src/np_Http.cpp
+                            src/np_Config.cpp
+                            src/np_Memory.cpp
+                            src/np_Log.cpp
+                            src/np_Graphics.cpp
+                            src/np_Api.cpp
+                            src/np_Base64.cpp
+
+                            src/scene/scene_SceneBase.cpp
+                            src/scene/scene_SceneManager.cpp
+
+                            src/scene/scenes/scene_HelpScene.cpp
+                            src/scene/scenes/scene_LoadingScene.cpp
+                            src/scene/scenes/scene_HomeScene.cpp
+                            src/scene/scenes/scene_SwitchScene.cpp
+                            src/scene/scenes/scene_LocationScene.cpp
+                            src/scene/scenes/scene_SettingsScene.cpp
+                            src/scene/scenes/scene_ToggleTitleScene.cpp
+                            src/scene/scenes/scene_RequestPassesScene.cpp
+
+
+include graphics
+
+SOURCES         +=   $(LIB_GRAPHICS_SOURCES)
+BIN2OBJ_FLAGS   +=   -r
+OBJECTS         +=   $(LIB_GRAPHICS_OBJECTS)
+
+
+# Specify the program name.
+# No extension is needed.
+TITLE               =   netpass_cli
+TARGET_PROGRAM          =   CN_NPAS_00.01
+ROM_SPEC_FILE       =   netpass-cli.rsf
+DESCRIPTOR        = $(CTRSDK_ROOT)/resources/specfiles/Application.desc
+CTR_BANNER_SPEC		= 	resource/banner.bsf
+CTR_APPTYPE = SD
+
+FORCE_LOGGING = false
+
+if $(and $(equal $(BUILD),Release), $(not $(equal $(FORCE_LOGGING),true)))
+    LOGGING_ENABLED = false
+    export
+else
+    LOGGING_ENABLED = true
+    export
+
+# Suppress padding warnings
+CCFLAGS_WARNING += --diag_suppress 1301,2530
+
+if $(and $(defined LOGGING_ENABLED), $(equal $(LOGGING_ENABLED),true))
+    DEBUG_PRINT         =   true
+    CCFLAGS_MACRO       +=  -DNP_LOGGING_ENABLED -DNN_LOG_LEVEL=NN_LOG_LEVEL_DEBUG
+    export
+else
+    DEBUG_PRINT         =   false
+    export
+
+include $(ROOT_OMAKE)/modulerules
+
+build: $(DEFAULT_TARGETS)

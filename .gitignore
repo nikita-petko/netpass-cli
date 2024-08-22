@@ -1,0 +1,22 @@
+# Xmake cache
+*.omc
+.omakedb
+.omakedb.lock
+
+# MacOS Cache
+.DS_Store
+
+*.o
+*.shbin
+*.axf
+*.axf.res
+*.cia
+*.cxi
+*.cxi.xml
+*.dasm
+*.map
+*.ctpk
+
+images
+objects
+*.tga

@@ -1,0 +1,26 @@
+TitleInfo:
+  Category: Application
+  UniqueId: 0xF808
+
+BasicInfo:
+  Title       : $(TITLE)
+  ProductCode : CTR-P-NPAS
+  BackupMemoryType: None
+  MediaSize: 128MB
+
+Rom:
+  SaveDataSize: 128KB # 128KB is the minimum allowed, even for SD applications (Card1 limitations)
+  
+PlainRegion: 
+  - Europe
+
+Option:
+  FreeProductCode: true
+
+AccessControlInfo:
+  FileSystemAccess: 
+    - DirectSdmcWrite
+
+CardInfo:
+  CardDevice: None
+  

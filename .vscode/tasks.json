@@ -1,0 +1,37 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build: Debug",
+            "type": "shell",
+            "command": "omake -j ${env:NUMBER_OF_PROCESSORS} BUILD=Debug",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "build: Release",
+            "type": "shell",
+            "command": "omake -j ${env:NUMBER_OF_PROCESSORS} BUILD=Release",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "clean",
+            "type": "shell",
+            "command": "omake clean",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        }
+    ]
+}

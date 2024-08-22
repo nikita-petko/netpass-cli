@@ -1,0 +1,38 @@
+#!/usr/bin/env omake
+
+# Get the root environment variables
+public.HORIZON_ROOT =
+if $(defined-env HORIZON_ROOT)
+    HORIZON_ROOT = $(absname $(string $(getenv HORIZON_ROOT)))
+    export
+
+if $(defined-env CTRSDK_ROOT)
+    CTRSDK_ROOT = $(absname $(string $(getenv CTRSDK_ROOT)))
+    if $(and $(defined-env HORIZON_ROOT), $(not $(equal $(HORIZON_ROOT), $(CTRSDK_ROOT))))
+        eprintln(HORIZON_ROOT and CTRSDK_ROOT do not match. Please set them to the same path or only define one of them.)
+        exit(1)
+    HORIZON_ROOT = $(CTRSDK_ROOT)
+    export
+
+if $(not $(HORIZON_ROOT))
+    eprintln($"$$CTRSDK_ROOT not defined.")
+    exit(1)
+
+global.CTRSDK_BUILD_ROOT = 
+    if $(defined-env CTRSDK_BUILD_ROOT)
+        value $(absname $(string $(getenv CTRSDK_BUILD_ROOT)))
+    else
+        value $(absname $(CTRSDK_ROOT)/build)
+
+oms = $(glob iD,$(CTRSDK_BUILD_ROOT)/omake*)
+include $(nth 0, $(rev $(set $(oms))))/commondefs
+
+DefineCommandVars()
+
+.PHONY: all build clean clobber
+.PHONY: run run-scripts run-emumem
+
+#
+# Read the OMakefile
+#
+.SUBDIRS: .

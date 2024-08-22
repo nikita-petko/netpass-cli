@@ -1,0 +1,25 @@
+{
+    "C_Cpp.loggingLevel": "Debug",
+    
+    "files.associations": {
+        "*.rsf": "yaml",
+        "*.bsf": "yaml",
+        "*.om": "shellscript",
+        "OMakeroot": "shellscript",
+        "OMakefile": "shellscript"
+    },
+
+    "explorer.fileNesting.enabled": true,
+    "explorer.fileNesting.patterns": {
+        "OMakefile": "Omakefile.omc, .omakedb",
+        ".omakedb": ".omakedb.lock",
+        "OMakeroot": "Omakeroot.omc",
+        "*.om": "$(capture).omc"
+    },
+    "explorer.fileNesting.expand": false,
+
+    // Font ligatures
+    "editor.fontLigatures": true,
+
+    "files.insertFinalNewline": true
+}

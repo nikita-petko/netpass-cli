@@ -1,0 +1,103 @@
+#!/usr/bin/env omake
+
+if $(not $(defined LIB_GRAPHICS_ROOT))
+    LIB_GRAPHICS_ROOT = src/graphics
+    export
+
+LIB_GRAPHICS_SOURCES[]  =   \
+                        $(LIB_GRAPHICS_ROOT)/graphics_Utility.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_MemoryManager.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_TextureConverter.cpp \
+                        \
+                        $(LIB_GRAPHICS_ROOT)/graphics_ProgramObject.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_ColorFillProgram.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_DecalTextureProgram.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_FontProgram.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_FontData.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_ShaderManager.cpp \
+                        \
+                        $(LIB_GRAPHICS_ROOT)/graphics_RenderData.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_TrianglesRenderData.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_TextsRenderData.cpp \
+                        \
+                        $(LIB_GRAPHICS_ROOT)/graphics_CommandList.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_FrameBuffer.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_DisplayBuffers.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_GraphicsDrawing.cpp \
+                        \
+                        $(LIB_GRAPHICS_ROOT)/graphics_RenderSystem.cpp \
+                        \
+                        $(LIB_GRAPHICS_ROOT)/graphics_RenderSystemDrawing.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_RenderSystemExt.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_RenderSystemAA.cpp \
+                        $(LIB_GRAPHICS_ROOT)/graphics_Light.cpp \
+                        \
+                        $(LIB_GRAPHICS_ROOT)/graphics_CommandCache.cpp
+
+
+
+####################################################################################################
+#
+# Shader binary rules
+#
+####################################################################################################
+
+VERTEX_SHADER_ASSEMBLER = $(ROOT_COMMANDS)$(DIRSEP)ctr_VertexShaderAssembler32.exe
+VERTEX_SHADER_LINKER = $(ROOT_COMMANDS)$(DIRSEP)ctr_VertexShaderLinker32.exe
+
+VERTEX_SHADER_DIR = $(dir $(LIB_GRAPHICS_ROOT)/shaders)
+VERTEX_SHADER_ASSEMBLER_FLAGS =
+VERTEX_SHADER_LINKER_FLAGS = -M
+
+VERTEX_SHADER_OBJ_EXT = .obj
+VERTEX_SHADER_BIN_EXT = .shbin
+
+BASIC_VERTEX_SHADER_FILES = \
+    $(VERTEX_SHADER_DIR)/ColorFillVShader.vsh \
+    $(VERTEX_SHADER_DIR)/FontVShader.vsh \
+    $(VERTEX_SHADER_DIR)/DecalTextureVShader.vsh
+
+BASIC_SHADER_BINARY_NAME = BasicVShader
+
+public.ObjectFromVShader(config, files, shader_binary_name) =
+    SH_OBJ_FILES =
+    obj_dir_parent = $(config.getObjectDirectory)
+    foreach(file, $(files))
+        BASENAME = $(removesuffix $(basename $(file)))
+
+        # *.obj
+        SH_OBJ_FILE = $(obj_dir_parent)/$(BASENAME)$(VERTEX_SHADER_OBJ_EXT)
+
+        if $(not $(defined SYMBOL_PREFIX))
+            SYMBOL_PREFIX = $(uppercase $(removesuffix $(basename $(file))))
+            export
+
+        # *.vsh -> *.obj
+        $(SH_OBJ_FILE): $(file) $(BIN2OBJ) $(obj_dir_parent)
+            $(VERTEX_SHADER_ASSEMBLER) $(file) $(VERTEX_SHADER_ASSEMBLER_FLAGS) -O$(SH_OBJ_FILE) | grep -v '^.*finished - 0 error, 0 warning'
+
+        SH_OBJ_FILES += $(SH_OBJ_FILE)
+        export SH_OBJ_FILES
+
+    # *.bin
+    SH_BIN_FILE = $(obj_dir_parent)/$(shader_binary_name)$(VERTEX_SHADER_BIN_EXT)
+
+    # *.obj -> *.bin
+    $(SH_BIN_FILE): $(SH_OBJ_FILES) $(obj_dir_parent)
+        $(VERTEX_SHADER_LINKER) $(SH_OBJ_FILES) $(VERTEX_SHADER_LINKER_FLAGS) -O$(SH_BIN_FILE) | grep -v '^.*finished - 0 error, 0 warning'
+
+    # *.o
+    OFILE = $(obj_dir_parent)/$(shader_binary_name)$(EXT_OBJ)
+
+    # *.bin -> *.o
+    BIN2OBJ_FLAGS = -b $(shader_binary_name)_SHADER_BEGIN -e $(shader_binary_name)_SHADER_END
+    $(OFILE) : $(SH_BIN_FILE) $(obj_dir_parent)
+        $(BIN2OBJ) $(BIN2OBJ_FLAGS) $(SH_BIN_FILE) $(OFILE)
+
+    return $(OFILE)
+
+LIB_GRAPHICS_OBJECTS[]  =   
+                        $`(ObjectFromVShader $(TARGET), $(BASIC_VERTEX_SHADER_FILES), $(BASIC_SHADER_BINARY_NAME))
+
+####################################################################################################
+

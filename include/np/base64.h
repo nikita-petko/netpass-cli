@@ -1,0 +1,21 @@
+#ifndef NP_BASE64_H_
+#define NP_BASE64_H_
+
+#include <nn/Result.h>
+
+namespace np {
+	/*!
+		@brief Base64 encodes the input data.
+		@note Call this function with pOut set to NULL to get the required size of the output buffer.
+
+		@param[out] pOut The buffer to write the encoded data to.
+		@param[in,out] outSize The size of the output buffer. If the buffer is too small, this will be set to the required size.
+		@param[in] pIn The data to encode.
+		@param[in] inSize The size of the input data.
+
+		@return The result of the operation.
+	*/
+	nn::Result Base64Encode(char* pOut, size_t* outSize, const void* pIn, size_t inSize);
+}  // namespace np
+
+#endif	// NP_BASE64_H_
