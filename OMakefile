@@ -4,29 +4,51 @@ DefineDefaultRules()
 
 SUPPORTED_TARGETS       =   CTR-T*.Process.MPCore.*
 INCLUDES           += include
+INCLUDES           += src
 
 # Specify the source code to build.
-SOURCES[]               =
-                            src/np_Main.cpp
-                            src/np_Http.cpp
-                            src/np_Config.cpp
-                            src/np_Memory.cpp
-                            src/np_Log.cpp
-                            src/np_Graphics.cpp
-                            src/np_Api.cpp
-                            src/np_Base64.cpp
+SOURCES[] =
+            src/np_Main.cpp
 
-                            src/scene/scene_SceneBase.cpp
-                            src/scene/scene_SceneManager.cpp
+            # Memory API
+            src/memory/memory_Api.cpp
 
-                            src/scene/scenes/scene_HelpScene.cpp
-                            src/scene/scenes/scene_LoadingScene.cpp
-                            src/scene/scenes/scene_HomeScene.cpp
-                            src/scene/scenes/scene_SwitchScene.cpp
-                            src/scene/scenes/scene_LocationScene.cpp
-                            src/scene/scenes/scene_SettingsScene.cpp
-                            src/scene/scenes/scene_ToggleTitleScene.cpp
-                            src/scene/scenes/scene_RequestPassesScene.cpp
+            # HTTP API
+            src/http/http_Api.cpp
+            src/http/http_Result.cpp
+
+            # Utility
+            src/util/util_Base64.cpp
+            src/util/util_Cec.cpp
+
+            # Configuration API
+            src/config/config_Api.cpp
+            src/config/config_TitleList.cpp
+
+            # NetPass API
+            src/api/api_Location.cpp
+            src/api/api_Passes.cpp
+            src/api/api_Boxes.cpp
+            src/api/api_DownloadThread.cpp
+
+            # Graphics API
+            src/graphics/graphics_Api.cpp
+            src/graphics/graphics_Color.cpp
+            src/graphics/graphics_Console.cpp
+            src/graphics/graphics_TextUtility.cpp
+
+            # Scene API
+            src/scene/scene_SceneBase.cpp
+            src/scene/scene_SceneManager.cpp
+
+            src/scene/scenes/scene_HelpScene.cpp
+            src/scene/scenes/scene_LoadingScene.cpp
+            src/scene/scenes/scene_HomeScene.cpp
+            src/scene/scenes/scene_SwitchScene.cpp
+            src/scene/scenes/scene_LocationScene.cpp
+            src/scene/scenes/scene_SettingsScene.cpp
+            src/scene/scenes/scene_ToggleTitleScene.cpp
+            src/scene/scenes/scene_RequestPassesScene.cpp
 
 
 include graphics
@@ -60,6 +82,7 @@ CCFLAGS_WARNING += --diag_suppress 1301,2530
 if $(and $(defined LOGGING_ENABLED), $(equal $(LOGGING_ENABLED),true))
     DEBUG_PRINT         =   true
     CCFLAGS_MACRO       +=  -DNP_LOGGING_ENABLED -DNN_LOG_LEVEL=NN_LOG_LEVEL_DEBUG
+    SOURCES             +=  src/log/log_Api.cpp
     export
 else
     DEBUG_PRINT         =   false

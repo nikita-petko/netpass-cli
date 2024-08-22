@@ -5,7 +5,8 @@
             "includePath": [
                 "${env:CTRSDK_ROOT}/include",
                 "${env:ARMCC5INC}",
-                "${workspaceFolder}/include"
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/src"
             ],
             "defines": [
                 // CTR-SDK specific

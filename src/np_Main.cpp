@@ -24,7 +24,6 @@
 #include <np/scene/scene_SceneManager.h>
 
 #include <np/log.h>
-#include <np/log_Macros.h>
 
 /*
 		@brief  The allocator to be used with cecd.
@@ -61,7 +60,7 @@ Finalize(void)
 {
 	NN_LOG_INFO("Finalizing np::scene, np::config, np::http, np::memory, np::graphics");
 
-	np::api::Finalize();
+	np::api::FinalizeInboxDownloadThread();
 	np::config::Finalize();
 	np::scene::Finalize();
 	np::graphics::Finalize();
@@ -80,9 +79,11 @@ Finalize(void)
 #endif
 }
 
-void
+nn::Result
 Initialize(void)
 {
+	nn::Result result;
+
 	nn::fs::Initialize();
 
 #ifdef NP_LOGGING_ENABLED
@@ -108,7 +109,7 @@ Initialize(void)
 		nn::applet::CloseApplication();
 
 		// Never reached
-		return;
+		return nn::ResultSuccess();
 	}
 
 	NN_LOG_INFO("Initializing np::memory");
@@ -120,15 +121,41 @@ Initialize(void)
 	np::graphics::Initialize();
 
 	NN_LOG_INFO("Initializing nn::hid");
-	NN_PANIC_IF_FAILED(nn::hid::Initialize());
+	result = nn::hid::Initialize();
+	NN_PANIC_IF_FAILED(result);	 // Nothing we can do if this fails
 
 	NN_LOG_INFO("Initializing nn::cec");
-	NN_PANIC_IF_FAILED(nn::cec::Initialize(s_CecAllocator));
+	result = nn::cec::Initialize(s_CecAllocator);
+	if (result.IsFailure())
+	{
+		NN_LOG_FATAL("Failed to initialize nn::cec:");
+		NN_DBG_PRINT_RESULT(result);
+
+		return result;
+	}
 
 	NN_LOG_INFO("Initializing np::http, np::config, np::scene");
-	np::http::Initialize();
-	np::config::Initialize();
+	result = np::http::Initialize();
+	if (result.IsFailure())
+	{
+		NN_LOG_FATAL("Failed to initialize np::http:");
+		NN_DBG_PRINT_RESULT(result);
+
+		return result;
+	}
+
+	result = np::config::Initialize();
+	if (result.IsFailure())
+	{
+		NN_LOG_FATAL("Failed to initialize np::config:");
+		NN_DBG_PRINT_RESULT(result);
+
+		return result;
+	}
+
 	np::scene::Initialize();
+
+	return nn::ResultSuccess();
 }
 
 void
@@ -142,12 +169,84 @@ validateGx()
 extern "C" void
 nnMain()
 {
-	Initialize();
+	nn::Result result = Initialize();
 
 	nn::hid::PadReader padReader;
 	nn::hid::PadStatus ps;
+	
+	if (result.IsFailure())
+	{
+		NN_LOG_FATAL("Failed to initialize:");
+		NN_DBG_PRINT_RESULT(result);
 
-	if (np::config::GetConfiguration().show_help)
+		if (result == nn::ac::ResultWifiOff())
+		{
+			np::graphics::DrawFatality("Wi-Fi is disabled");
+
+			PRINTF_DISPLAY1("Wi-Fi is disabled");
+			PRINTF_DISPLAY1("Please enable Wi-Fi via:");
+			PRINTF_DISPLAY1("The WiFi switch on the");
+			PRINTF_DISPLAY1("right side of the system");
+			PRINTF_DISPLAY1("(for old 3DS models)");
+			PRINTF_DISPLAY1("or via the HOME menu");
+		}
+		else if (result.GetModule() == nn::Result::MODULE_NN_AC)
+		{
+			np::graphics::DrawFatality("Failed to initialize Wi-Fi");
+
+			PRINTF_DISPLAY1("Failed to initialize Wi-Fi");
+			PRINTF_DISPLAY1("Error code: 0x%08X", result.GetPrintableBits());
+		}
+		else
+		{
+			np::graphics::DrawFatality("Failed to initialize");
+
+			PRINTF_DISPLAY1("Failed to initialize");
+			PRINTF_DISPLAY1("Error code: 0x%08X", result.GetPrintableBits());
+		}
+
+		PRINTF_DISPLAY1("Press (start) to exit");
+		PRINTF_DISPLAY1("or exit via the home menu.");
+
+		// Wait for exit or start button
+		while (1)
+		{
+			padReader.ReadLatest(&ps);
+
+			if (ps.trigger & nn::hid::BUTTON_START)
+				break;
+
+			if (nn::applet::IsExpectedToProcessHomeButton())
+			{
+				nn::applet::ProcessHomeButtonAndWait();
+
+				if (nn::applet::IsExpectedToCloseApplication())
+					break;
+
+				validateGx();
+			}
+
+			if (nn::applet::IsExpectedToProcessPowerButton())
+			{
+				nn::applet::ProcessPowerButtonAndWait();
+
+				if (nn::applet::IsExpectedToCloseApplication())
+					break;
+
+				validateGx();
+			}
+
+			if (nn::applet::IsExpectedToCloseApplication())
+				break;
+		}
+
+		// Close application (regular as IsExpectedToCloseApplication() should be true)
+		nn::applet::CTR::detail::CloseApplicationCore();
+
+		return;
+	}
+
+	if (np::config::GetConfiguration()->show_help)
 		np::scene::ChangeScene(np::scene::GetHelpScene());
 	else
 		np::scene::GetHelpScene()->NextScene();

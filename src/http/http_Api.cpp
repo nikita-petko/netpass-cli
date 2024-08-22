@@ -1,5 +1,4 @@
 #include <np/http.h>
-#include <np/log.h>
 #include <np/memory.h>
 
 #include <nn/ac.h>
@@ -11,10 +10,10 @@
 #	include <nn/crypto.h>
 #	include <nn/nwm.h>
 
-#	include <np/base64.h>
+#	include <np/util.h>
 #endif
 
-#include <np/log_Macros.h>
+#include <np/log.h>
 
 #define NP_HEADER_MAC_ADDRESS "3ds-mac"
 #define NP_HEADER_NET_PASS_ID "3ds-nid"
@@ -75,6 +74,13 @@ namespace np { namespace http {
 							   size_t						 headerCount)
 		{
 			NN_LOG_INFO("Sending request, url: %s, method: %d", url, method);
+
+			if (!s_IsInitialized)
+			{
+				NN_LOG_WARN("Not initialized, initializing.");
+
+				return ResultHttpNotInitialized();
+			}
 
 			using namespace nn::http;
 
@@ -208,10 +214,10 @@ CLEANUP:
 		}
 	}  // namespace detail
 
-	void Initialize(void)
+	nn::Result Initialize(void)
 	{
 		if (s_IsInitialized)
-			return;
+			return nn::ResultSuccess();
 
 		NN_LOG_INFO("Initializing np::http");
 
@@ -220,25 +226,22 @@ CLEANUP:
 		NN_LOG_INFO("Initializing nn::ac.");
 
 		result = nn::ac::Initialize();
-		NN_PANIC_IF_FAILED(result);
+		if (result.IsFailure())
+			return result;
 
 		// Issue connection request
 		result = detail::ConnectToAc();
 		if (result.IsFailure())
-		{
-#ifndef NN_BUILD_DEBUG	// nn::ac::Connect will always error on Citra, even though they have internet, this just ensures that debug builds
-						// can still connect
-			NN_PANIC_IF_FAILED(result);
-			return;
-#endif
-		}
+			return result;
 
 #ifndef NN_BUILD_DEBUG
 
 		NN_LOG_INFO("Getting MAC address.");
 
 		nn::nwm::Mac mac;
-		NN_PANIC_IF_FAILED(nn::nwm::GetMacAddress(mac));
+		result = nn::nwm::GetMacAddress(mac);
+		if (result.IsFailure())
+			return result;
 
 		u8 macBuffer[nn::nwm::Mac::MAC_SIZE];
 		mac.Get(macBuffer);
@@ -253,12 +256,18 @@ CLEANUP:
 							macBuffer[4],
 							macBuffer[5]);
 
-		NN_PANIC_IF_FAILED(nn::am::InitializeForSystemMenu());
+		result = nn::am::InitializeForSystemMenu();
+		if (result.IsFailure())
+			return result;
 
 		bit32 deviceId;
-		NN_PANIC_IF_FAILED(nn::am::GetDeviceId(&deviceId));
+		result = nn::am::GetDeviceId(&deviceId);
+		if (result.IsFailure())
+			return result;
 
-		NN_PANIC_IF_FAILED(nn::am::FinalizeForSystemMenu());
+		result = nn::am::FinalizeForSystemMenu();
+		if (result.IsFailure())
+			return result;
 
 		NN_LOG_INFO("Device ID: %u", deviceId);
 
@@ -266,7 +275,7 @@ CLEANUP:
 		nn::crypto::CalculateHmacSha256(deviceIdHmacBuffer, &deviceId, sizeof(deviceId), macBuffer, sizeof(macBuffer));
 
 		size_t size = sizeof(s_NetPassId);
-		np::Base64Encode(s_NetPassId, &size, deviceIdHmacBuffer, sizeof(deviceIdHmacBuffer));
+		np::util::Base64Encode(s_NetPassId, &size, deviceIdHmacBuffer, sizeof(deviceIdHmacBuffer));
 #endif
 
 		NN_LOG_INFO("Initialized headers, MAC address: %s, NetPass ID: %s", s_MacAddress, s_NetPassId);
@@ -276,16 +285,20 @@ CLEANUP:
 		s_HttpPostBuffer = std::malloc(HTTP_POST_BUFFER_SIZE + (HTTP_BUFFER_ALIGNMENT - 1));
 		if (!s_HttpPostBuffer)
 		{
-			NN_PANIC("Failed to allocate HTTP post buffer");
+			NN_LOG_ERROR("Failed to allocate HTTP post buffer.");
 
-			return;
+			return ResultHttpPostBufferAllocationFailed();
 		}
 
 		s_HttpPostBuffer = reinterpret_cast<void*>(MEM_ROUNDUP(reinterpret_cast<u32>(s_HttpPostBuffer), HTTP_BUFFER_ALIGNMENT));
 
-		NN_PANIC_IF_FAILED(nn::http::Initialize(reinterpret_cast<uptr>(s_HttpPostBuffer), HTTP_POST_BUFFER_SIZE));
+		result = nn::http::Initialize(reinterpret_cast<uptr>(s_HttpPostBuffer), HTTP_POST_BUFFER_SIZE);
+		if (result.IsFailure())
+			return result;
 
 		s_IsInitialized = true;
+
+		return nn::ResultSuccess();
 	}
 
 	void Finalize(void)

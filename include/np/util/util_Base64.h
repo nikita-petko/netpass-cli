@@ -1,9 +1,9 @@
-#ifndef NP_BASE64_H_
-#define NP_BASE64_H_
+#ifndef NP_UTIL_UTIL_BASE64_H_
+#define NP_UTIL_UTIL_BASE64_H_
 
 #include <nn/Result.h>
 
-namespace np {
+namespace np { namespace util {
 	/*!
 		@brief Base64 encodes the input data.
 		@note Call this function with pOut set to NULL to get the required size of the output buffer.
@@ -16,6 +16,6 @@ namespace np {
 		@return The result of the operation.
 	*/
 	nn::Result Base64Encode(char* pOut, size_t* outSize, const void* pIn, size_t inSize);
-}  // namespace np
+}}	// namespace np::util
 
-#endif	// NP_BASE64_H_
+#endif	// NP_UTIL_UTIL_BASE64_H_

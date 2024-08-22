@@ -7,7 +7,7 @@
 #include <np/config.h>
 #include <np/graphics.h>
 
-#include <np/log_Macros.h>
+#include <np/log.h>
 
 namespace {
 
@@ -16,7 +16,7 @@ using namespace np::scene;
 LoadingScene::LoadingCallbackResult
 LoadingCallback(void)
 {
-	nn::Result result = np::api::SetLocation(np::api::s_Location);
+	nn::Result result = np::api::SetLocation(np::api::GetLocalLocation());
 	if (!result.IsSuccess())
 	{
 		if (result == nn::http::ResultTimeout())
@@ -134,9 +134,7 @@ namespace np { namespace scene {
 
 		NN_LOG_INFO("Location selected %d", homeScene->m_SelectedOption);
 
-		np::config::Configuration& config = np::config::GetConfiguration();
-
-		if (config.last_location == homeScene->m_SelectedOption)
+		if (np::config::GetConfiguration()->last_location == homeScene->m_SelectedOption)
 		{
 			NN_LOG_INFO("Previously at location %d", homeScene->m_SelectedOption);
 
@@ -147,7 +145,7 @@ namespace np { namespace scene {
 			return;
 		}
 
-		np::api::s_Location = homeScene->m_SelectedOption;
+		np::api::SetLocalLocation(homeScene->m_SelectedOption);
 
 		LoadingScene* loadingScene = GetLoadingScene();
 		loadingScene->Update(GetLocationScene(), LoadingCallback);

@@ -1,11 +1,10 @@
 #ifdef NP_LOGGING_ENABLED
 
-#	include <np/log.h>
 #	include <nn/fs.h>
 #	include <nn/dbg.h>
 #	include <nn/nstd.h>
 
-#	include <np/log_Macros.h>
+#	include <np/log.h>
 
 #	define LOG_FILE_NAME "sdmcwo:/np-log.txt"
 

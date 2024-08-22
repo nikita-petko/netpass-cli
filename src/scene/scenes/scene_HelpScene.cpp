@@ -7,7 +7,7 @@
 #include <np/http.h>
 #include <np/memory.h>
 
-#include <np/log_Macros.h>
+#include <np/log.h>
 
 namespace {
 
@@ -16,9 +16,9 @@ using namespace np::scene;
 SceneBase*
 OnSwitch(void)
 {
-	s8 currentLocation = np::api::s_Location;
+	s8 currentLocation = np::api::GetLocalLocation();
 
-	nn::Result result = np::api::StartBackgroundThread();
+	nn::Result result = np::api::StartInboxDownloadThread();
 	if (!result.IsSuccess())
 	{
 		NN_LOG_ERROR("Failed to start background thread:");
@@ -187,7 +187,7 @@ LoadingCallback(void)
 	else
 		PRINTF_DISPLAY1("Location set to %d", location);
 
-	np::api::s_Location = location;
+	np::api::SetLocalLocation(location);
 
 	return LoadingScene::LOADING_CALLBACK_RESULT_NEXT_SCENE;
 }

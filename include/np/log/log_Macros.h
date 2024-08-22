@@ -1,3 +1,6 @@
+#ifndef NP_LOG_LOG_MACROS_H_
+#define NP_LOG_LOG_MACROS_H_
+
 // This file is used to define logging macros for the project.
 // Make sure that this is the last file included in a source file.
 
@@ -19,3 +22,5 @@
 #	define NN_LOG_DEBUG(format, ...) NN_LOG("[DEBUG] " format " (%s:%d)\n", ##__VA_ARGS__, NN_FILE_NAME, __LINE__)
 
 #endif
+
+#endif	// NP_LOG_LOG_MACROS_H_

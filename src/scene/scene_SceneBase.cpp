@@ -3,7 +3,7 @@
 
 #include <np/graphics.h>
 
-#include <np/log_Macros.h>
+#include <np/log.h>
 
 namespace np { namespace scene {
 
