@@ -1,20 +1,15 @@
 #ifndef NP_LOG_H_
 #define NP_LOG_H_
 
-#ifdef NP_LOGGING_ENABLED
-
-namespace np { namespace log {
-	/*!
-		@brief Initializes the logging system.
-	*/
-	void Initialize(void);
-
-	/*!
-		@brief Finalizes the logging system.
-	*/
-	void Finalize(void);
-}}	// namespace np::log
-
-#endif
+#if defined(NN_PLATFORM_CTR)
+#	ifdef NP_LOGGING_ENABLED
+#		ifdef __cplusplus
+#			include <np/log/log_Api.h>
+#			include <np/log/log_Macros.h>
+#		endif
+#	endif	// NP_LOGGING_ENABLED
+#else
+#	error no platform selected
+#endif	// NN_PLATFORM_CTR
 
 #endif	// NP_LOG_H_

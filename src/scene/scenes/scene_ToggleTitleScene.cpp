@@ -3,8 +3,9 @@
 
 #include <np/api.h>
 #include <np/config.h>
+#include <np/util.h>
 
-#include <np/log_Macros.h>
+#include <np/log.h>
 
 namespace {
 bool s_ChangesMade = false;
@@ -17,7 +18,7 @@ namespace np { namespace scene {
 		NN_LOG_INFO("Initializing np::scene::ToggleTitleScene");
 
 		nn::cec::MessageBoxList messageBoxList;
-		NN_PANIC_IF_FAILED(np::api::GetMessageBoxList(&messageBoxList));
+		NN_PANIC_IF_FAILED(np::util::GetCecMessageBoxList(&messageBoxList));
 
 		m_NumOptions		= messageBoxList.DirNum + 2;  // +1 for the return option
 		m_Options			= new Option*[m_NumOptions];
@@ -30,7 +31,7 @@ namespace np { namespace scene {
 			nn::cec::TitleId titleId = std::strtoul(reinterpret_cast<const char*>(messageBoxList.DirName[i]), NULL, 16);
 
 			nn::cec::MessageBox messageBox;
-			NN_PANIC_IF_FAILED(np::api::OpenMessageBox(titleId, &messageBox));
+			NN_PANIC_IF_FAILED(np::util::OpenCecMessageBox(titleId, &messageBox));
 
 			size_t	titleLength = messageBox.GetMessageBoxDataSize(nn::cec::BOXDATA_TYPE_NAME_1);
 			char16* title16		= reinterpret_cast<char16*>(std::malloc(titleLength));

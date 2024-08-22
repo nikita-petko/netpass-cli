@@ -1,8 +1,8 @@
-#include <np/log.h>
 #include <np/memory.h>
 
 #include <nn/os.h>
-#include <np/log_Macros.h>
+
+#include <np/log.h>
 
 namespace {
 nn::fnd::ExpHeap s_AppHeap;

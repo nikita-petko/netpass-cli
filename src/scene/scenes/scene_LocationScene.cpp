@@ -4,14 +4,14 @@
 #include <np/api.h>
 #include <np/graphics.h>
 
-#include <np/log_Macros.h>
+#include <np/log.h>
 
 namespace {
 
 const char*
 CurrentLocationToString()
 {
-	switch (np::api::s_Location)
+	switch (np::api::GetLocalLocation())
 	{
 		case 0:
 			return "Train Station";

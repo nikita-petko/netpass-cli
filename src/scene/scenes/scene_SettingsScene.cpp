@@ -3,7 +3,7 @@
 
 #include <np/config.h>
 
-#include <np/log_Macros.h>
+#include <np/log.h>
 
 namespace {
 np::scene::SceneBase* s_LastScene;
@@ -31,7 +31,7 @@ namespace np { namespace scene {
 		m_Options[1]->callback = reinterpret_cast<OptionCallback>(&SettingsScene::OnToggleShowHelpSelected);
 		m_Options[2]->callback = reinterpret_cast<OptionCallback>(&SettingsScene::OnReturnToLastSceneSelected);
 
-		if (np::config::GetConfiguration().show_help)
+		if (np::config::GetConfiguration()->show_help)
 			m_Options[1]->color = np::graphics::COLOR_GREEN;
 		else
 			m_Options[1]->color = np::graphics::COLOR_RED;
@@ -56,13 +56,13 @@ namespace np { namespace scene {
 
 	void SettingsScene::OnToggleShowHelpSelected(void)
 	{
-		np::config::Configuration& config = np::config::GetConfiguration();
+		np::config::Configuration* config = np::config::GetConfiguration();
 
-		config.show_help = !config.show_help;
+		config->show_help = !config->show_help;
 
 		SettingsScene* settingsScene = GetSettingsScene();
 
-		if (config.show_help)
+		if (config->show_help)
 			settingsScene->m_Options[1]->color = np::graphics::COLOR_GREEN;
 		else
 			settingsScene->m_Options[1]->color = np::graphics::COLOR_RED;

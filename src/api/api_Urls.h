@@ -1,0 +1,27 @@
+#ifndef NP_API_API_URLS_H_
+#define NP_API_API_URLS_H_
+
+#define API_BASE_URL "http://netpass-proxy.service.vmminfra.net"
+
+#define API_GET_LOCATION	 "/location/current"
+#define API_URL_GET_LOCATION API_BASE_URL API_GET_LOCATION
+
+#define API_SET_LOCATION	 "/location/%d/enter"
+#define API_URL_SET_LOCATION API_BASE_URL API_SET_LOCATION
+
+#define API_UPLOAD_MESSAGE_BOX_LIST		"/outbox/mboxlist"
+#define API_URL_UPLOAD_MESSAGE_BOX_LIST API_BASE_URL API_UPLOAD_MESSAGE_BOX_LIST
+
+#define API_DELETE_OUTBOX	  "/outbox/%s"
+#define API_URL_DELETE_OUTBOX API_BASE_URL API_DELETE_OUTBOX
+
+#define API_UPLOAD_OUTBOX	  "/outbox/upload"
+#define API_URL_UPLOAD_OUTBOX API_BASE_URL API_UPLOAD_OUTBOX
+
+#define API_POP_MESSAGE		"/inbox/%s/pop"
+#define API_URL_POP_MESSAGE API_BASE_URL API_POP_MESSAGE
+
+#define API_REQUEST_PASSES	   "/pass/title_id/%08X"
+#define API_URL_REQUEST_PASSES API_BASE_URL API_REQUEST_PASSES
+
+#endif	// NP_API_API_URLS_H_
