@@ -173,7 +173,7 @@ nnMain()
 
 	nn::hid::PadReader padReader;
 	nn::hid::PadStatus ps;
-	
+
 	if (result.IsFailure())
 	{
 		NN_LOG_FATAL("Failed to initialize:");
@@ -183,12 +183,11 @@ nnMain()
 		{
 			np::graphics::DrawFatality("Wi-Fi is disabled");
 
-			PRINTF_DISPLAY1("Wi-Fi is disabled");
+			PRINTF_DISPLAY1("Wi-Fi is disabled.");
 			PRINTF_DISPLAY1("Please enable Wi-Fi via:");
-			PRINTF_DISPLAY1("The WiFi switch on the");
-			PRINTF_DISPLAY1("right side of the system");
-			PRINTF_DISPLAY1("(for old 3DS models)");
-			PRINTF_DISPLAY1("or via the HOME menu");
+			PRINTF_DISPLAY1("- The WiFi switch on the side of the");
+			PRINTF_DISPLAY1("  system (for old 3DS models)");
+			PRINTF_DISPLAY1("- The HOME menu (top left corner)");
 		}
 		else if (result.GetModule() == nn::Result::MODULE_NN_AC)
 		{
@@ -205,6 +204,8 @@ nnMain()
 			PRINTF_DISPLAY1("Error code: 0x%08X", result.GetPrintableBits());
 		}
 
+		PRINTF_DISPLAY1(NULL);
+		PRINTF_DISPLAY1(NULL);
 		PRINTF_DISPLAY1("Press (start) to exit");
 		PRINTF_DISPLAY1("or exit via the home menu.");
 
@@ -239,6 +240,8 @@ nnMain()
 			if (nn::applet::IsExpectedToCloseApplication())
 				break;
 		}
+
+		Finalize();
 
 		// Close application (regular as IsExpectedToCloseApplication() should be true)
 		nn::applet::CTR::detail::CloseApplicationCore();

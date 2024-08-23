@@ -40,6 +40,15 @@ namespace np { namespace scene {
 			char8* title = reinterpret_cast<char8*>(std::malloc(titleLength));
 			std::wcstombs(title, title16, titleLength);
 
+			// If the title cannot be converted to a string (i.e. it contains non-ASCII characters), use the title ID instead
+			if (*title == NULL)
+			{
+				std::free(title);
+
+				title = reinterpret_cast<char8*>(std::malloc(sizeof(messageBoxList.DirName[i])));
+				std::memcpy(title, messageBoxList.DirName[i], sizeof(messageBoxList.DirName[i]));
+			}
+
 			m_Options[i]->text	   = title;
 			m_Options[i]->callback = reinterpret_cast<OptionCallback>(&ToggleTitleScene::OnToggleTitleSelected);
 

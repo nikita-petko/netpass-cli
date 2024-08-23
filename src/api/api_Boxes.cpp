@@ -74,9 +74,9 @@ namespace np { namespace api {
 		{
 			const u8* titleIdStr = messageBoxList.DirName[i];
 
-			PRINTF_DISPLAY1("Uploading outbox for title %s", titleIdStr, i + 1, messageBoxList.DirNum);
+			PRINTF_DISPLAY1("Uploading outbox for title %s", titleIdStr);
 
-			nn::cec::TitleId titleId = std::strtol(reinterpret_cast<const char*>(titleIdStr), NULL, 16);
+			nn::cec::TitleId titleId = std::strtoul(reinterpret_cast<const char*>(titleIdStr), NULL, 16);
 
 			NN_LOG_INFO("Opening message box for title %s", titleIdStr);
 
