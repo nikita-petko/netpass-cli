@@ -17,13 +17,6 @@ Unlike StreetPass, NetPass works over the internet. Upon opening NetPass, you ca
 This application currently depends on an insecure proxy of [the API](https://api.netpass.cafe) in order to comply with a limitation of nn::http.
 This will be changed in a future release when [CTR libcurl](https://github.com/nikita-petko/ctr-libcurl) is completed.
 
-## Notice for box updates
-
-Currently when this updates the box, it does not set the notification light properly for the title, in the future this will be fixed when I drop the dependency on nn::cec::MessageBox and just do direct reads and writes from the files.
-
-## Translations
-If you want to contribute to translations, we are doing that on [our Weblate](https://weblate.sorunome.de/projects/netpass)!
-
 ## Credits
  - [NetPass](https://gitlab.com/3ds-netpass/netpass) by [Sorunome](https://gitlab.com/Sorunome), the original implementation.
 
