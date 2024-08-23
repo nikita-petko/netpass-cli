@@ -15,7 +15,6 @@ SOURCES[] =
 
             # HTTP API
             src/http/http_Api.cpp
-            src/http/http_Result.cpp
 
             # Utility
             src/util/util_Base64.cpp

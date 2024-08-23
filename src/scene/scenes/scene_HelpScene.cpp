@@ -220,9 +220,13 @@ namespace np { namespace scene {
 		renderSystem->DrawText(0, LINE(14), "- (B) : Back");
 		renderSystem->DrawText(0, LINE(15), "- (START) : Exit");
 		renderSystem->DrawText(0, LINE(17), "You can disable this screen in the settings.");
+		renderSystem->DrawText(0, LINE(18), "Please note the following about title lists:");
+		renderSystem->DrawText(0, LINE(19), "If you see a title with just an ID, it means");
+		renderSystem->DrawText(0, LINE(20), "that the title's name was non-ASCII and could");
+		renderSystem->DrawText(0, LINE(21), "not be displayed.");
 
 		renderSystem->SetColor(GRAPHICS_COLOR_GREEN);
-		renderSystem->DrawText(0, LINE(19), "Press (A) to continue");
+		renderSystem->DrawText(0, LINE(23), "Press (A) to continue");
 		renderSystem->SetColor(GRAPHICS_COLOR_WHITE);
 
 		renderSystem->SwapBuffers();

@@ -33,13 +33,6 @@ namespace np { namespace http {
 						   nn::Result::MODULE_NN_HTTP,
 						   nn::Result::DESCRIPTION_INVALID_RESULT_VALUE);
 
-	/*!
-		@brief  Converts a nn::http::ResultCode to a string.
-		@param[in]  result  The result code to convert.
-		@return  The string representation of the result code.
-	*/
-	const char* ConvertResultToString(nn::http::ResultCode result);
-
 }}	// namespace np::http
 
 #endif	// NP_HTTP_HTTP_RESULT_H_

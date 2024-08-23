@@ -22,9 +22,9 @@ nn::fnd::TimeSpan s_DownloadInterval = nn::fnd::TimeSpan::FromMinutes(5);
 #endif
 
 bool
-IsValidMessage(u8* data)
+IsValidMessage(u8* messageBuffer)
 {
-	nn::cec::CecMessageHeader* header = reinterpret_cast<nn::cec::CecMessageHeader*>(data);
+	nn::cec::CecMessageHeader* header = reinterpret_cast<nn::cec::CecMessageHeader*>(messageBuffer);
 
 	if (header->magic16 != nn::cec::MESSAGE_MAGIC)
 	{
@@ -48,7 +48,7 @@ IsValidMessage(u8* data)
 	if (header->bodySize <= 0x20)
 	{
 		u8	b	= 0;
-		u8* ptr = data + sizeof(nn::cec::CecMessageHeader);
+		u8* ptr = messageBuffer + sizeof(nn::cec::CecMessageHeader);
 
 		for (int i = 0; i < header->bodySize; i++)
 		{
@@ -68,73 +68,188 @@ IsValidMessage(u8* data)
 }
 
 nn::Result
-WriteMessageToBox(nn::cec::MessageBox& messageBox, u8* data)
+WriteMessageToBox(u8* messageBuffer)
 {
-	// Data includes the message header
 	nn::Result result;
 	size_t	   readLength = 0;
 
-	if (!IsValidMessage(data))
+	NN_LOG_INFO("Writing message to box, message buffer: %p", messageBuffer);
+
+	// Sanity check for message validity
+	if (!IsValidMessage(messageBuffer))
 	{
 		NN_LOG_ERROR("Invalid message");
 
 		return np::api::ResultInvalidCecMessage();
 	}
 
-	nn::cec::CecMessageHeader* header = reinterpret_cast<nn::cec::CecMessageHeader*>(data);
+	nn::cec::CecMessageHeader* messageHeader = reinterpret_cast<nn::cec::CecMessageHeader*>(messageBuffer);
 
-	if (!header->recvDate.year)
-		header->recvDate = nn::fnd::DateTime::GetNow().GetParameters();
+	// If the message header has no receive date, set it to the current date
+	if (!messageHeader->recvDate.year)
+		messageHeader->recvDate = nn::fnd::DateTime::GetNow().GetParameters();
 
-	u32 maxMessages = messageBox.GetBoxMessageNumMax(nn::cec::CEC_BOXTYPE_INBOX);
-	u32 maxBoxSize	= sizeof(nn::cec::CecBoxInfoHeader) + (maxMessages * sizeof(nn::cec::CecMessageHeader));
+	// First allocation for just the header, in order to forward allocate the full size of the message box
+	NN_LOG_INFO("Determining message box size for title %08X", messageHeader->cecTitleId);
 
-	for (int i = 0; i < messageBox.GetBoxMessageNum(nn::cec::CEC_BOXTYPE_INBOX); i++)
+	u8* boxBuffer = reinterpret_cast<u8*>(std::malloc(nn::cec::CEC_SIZEOF_BOXINFO_HEADER));
+	if (boxBuffer == NULL)
 	{
-		nn::cec::MessageId messageId = messageBox.GetMessageId(nn::cec::CEC_BOXTYPE_INBOX, i);
+		NN_LOG_ERROR("Failed to allocate memory for box buffer");
 
-		if (0 == std::memcmp(messageId.GetBinary(), header->messageId, nn::cec::CEC_SIZEOF_MESSAGEID))
+		return np::api::ResultMemoryAllocationFailed();
+	}
+
+	NN_LOG_INFO("Opening and reading inbox info for title %08X", messageHeader->cecTitleId);
+
+	result = nn::cec::detail::OpenAndReadFile(boxBuffer,
+											  nn::cec::CEC_SIZEOF_BOXINFO_HEADER,
+											  &readLength,
+											  messageHeader->cecTitleId,
+											  nn::cec::CTR::FILETYPE_INBOX_INFO,
+											  nn::cec::CTR::FILEOPT_READ | nn::cec::CTR::FILEOPT_NOCHECK);
+	if (result.IsFailure())
+	{
+		NN_LOG_ERROR("Failed to open and read inbox info:");
+		NN_DBG_PRINT_RESULT(result);
+
+		std::free(boxBuffer);
+
+		return result;
+	}
+
+	// Calculate the full size of the message box
+	u32 maxMessages = reinterpret_cast<nn::cec::CecBoxInfoHeader*>(boxBuffer)->messNumMax;
+	u32 maxBoxSize	= nn::cec::CEC_SIZEOF_BOXINFO_HEADER + (maxMessages * sizeof(nn::cec::CecMessageHeader));
+
+	NN_LOG_INFO("Allocating memory for full message box, max messages: %d, max size: %d", maxMessages, maxBoxSize);
+
+	std::free(boxBuffer);
+
+	// Allocate the full sized message box
+	boxBuffer = reinterpret_cast<u8*>(std::malloc(maxBoxSize));
+	if (boxBuffer == NULL)
+	{
+		NN_LOG_ERROR("Failed to allocate memory for box buffer");
+
+		return np::api::ResultMemoryAllocationFailed();
+	}
+
+	// Open the inbox info file again to check if the message already exists
+	NN_LOG_INFO("Opening and reading inbox info for title %08X", messageHeader->cecTitleId);
+
+	result = nn::cec::detail::OpenAndReadFile(boxBuffer,
+											  maxBoxSize,
+											  &readLength,
+											  messageHeader->cecTitleId,
+											  nn::cec::CTR::FILETYPE_INBOX_INFO,
+											  nn::cec::CTR::FILEOPT_READ | nn::cec::CTR::FILEOPT_NOCHECK);
+	if (result.IsFailure())
+	{
+		NN_LOG_ERROR("Failed to open and read inbox info:");
+		NN_DBG_PRINT_RESULT(result);
+
+		std::free(boxBuffer);
+
+		return result;
+	}
+
+	nn::cec::CecBoxInfoHeader* boxInfoHeader = reinterpret_cast<nn::cec::CecBoxInfoHeader*>(boxBuffer);
+	nn::cec::CecMessageHeader* boxMessages	 = reinterpret_cast<nn::cec::CecMessageHeader*>(boxBuffer + sizeof(nn::cec::CecBoxInfoHeader));
+
+	NN_LOG_INFO("Checking if message already exists in inbox for title %08X", messageHeader->cecTitleId);
+
+	// Check if the message already exists in the inbox
+	for (int i = 0; i < boxInfoHeader->messNum; i++)
+	{
+		if (0 == std::memcmp(boxMessages[i].messageId, messageHeader->messageId, nn::cec::CEC_SIZEOF_MESSAGEID))
 		{
 			NN_LOG_INFO("Message already exists in inbox");
+
+			std::free(boxBuffer);
 
 			return nn::ResultSuccess();
 		}
 	}
 
-	if (messageBox.GetBoxMessageNum(nn::cec::CEC_BOXTYPE_INBOX) >= maxMessages)
+	NN_LOG_INFO("Checking if inbox is full for title %08X, current messages: %d, max messages: %d",
+				messageHeader->cecTitleId,
+				boxInfoHeader->messNum,
+				boxInfoHeader->messNumMax);
+
+	// Check if the inbox is full (sanity check, ::DoDownloadBoxes already checks this, but just in case a message is popped before this
+	// check)
+	if (boxInfoHeader->messNum >= boxInfoHeader->messNumMax)
 	{
 		NN_LOG_ERROR("Inbox is full");
+
+		std::free(boxBuffer);
 
 		return np::api::ResultMessageBoxAtMaxCapacity();
 	}
 
-	if (messageBox.GetBoxMessageSizeMax(nn::cec::CEC_BOXTYPE_INBOX) < header->messSize)
+	NN_LOG_INFO("Checking if message is too large for inbox for title %08X, message size: %d, max size: %d",
+				messageHeader->cecTitleId,
+				messageHeader->messSize,
+				boxInfoHeader->messSizeMax);
+
+	// Check if the message is too large for the inbox
+	if (boxInfoHeader->messSizeMax < messageHeader->messSize)
 	{
 		NN_LOG_ERROR("Message too large for inbox");
 
-		return np::api::ResultMessageTooLargeForBox();
-	}
-
-	if (messageBox.GetBoxSize(nn::cec::CEC_BOXTYPE_INBOX) + header->messSize > messageBox.GetBoxSizeMax(nn::cec::CEC_BOXTYPE_INBOX))
-	{
-		NN_LOG_ERROR("Inbox is full");
+		std::free(boxBuffer);
 
 		return np::api::ResultMessageTooLargeForBox();
 	}
 
+	NN_LOG_INFO("Checking if message would exceed inbox size for title %08X, message size: %d, current size: %d, max size: %d",
+				messageHeader->cecTitleId,
+				messageHeader->messSize,
+				boxInfoHeader->boxSize,
+				boxInfoHeader->boxSizeMax);
+
+	// Check if the message would cause the inbox to exceed its maximum size
+	if (boxInfoHeader->boxSize + messageHeader->messSize > boxInfoHeader->boxSizeMax)
 	{
+		NN_LOG_ERROR("Message would exceed inbox size");
+
+		std::free(boxBuffer);
+
+		return np::api::ResultMessageTooLargeForBox();
+	}
+
+	std::free(boxBuffer);
+
+	NN_LOG_INFO("Writing message to inbox for title %08X", messageHeader->cecTitleId);
+
+	// Write the message to the inbox
+	{
+		NN_LOG_INFO("Getting HMAC key for title %08X", messageHeader->cecTitleId);
+
+		// Open the message box info file to fetch the HMAC key
 		nn::cec::MessageBoxInfo messageBoxInfo;
-		np::util::GetCecMessageBoxInfo(messageBox.GetCurrentCecTitleId(), &messageBoxInfo);
+		result = np::util::GetCecMessageBoxInfo(messageHeader->cecTitleId, &messageBoxInfo);
+		if (result.IsFailure())
+		{
+			NN_LOG_ERROR("Failed to get message box info:");
+			NN_DBG_PRINT_RESULT(result);
 
-		header->flagUnread = true;
-		header->flagNew	   = true;
+			return result;
+		}
 
-		result = nn::cec::CTR::detail::WriteMessageWithHmac(header->cecTitleId,
+		NN_LOG_INFO("Updating message flags for title %08X and writing message", messageHeader->cecTitleId);
+
+		// Update the message flags to indicate that it is unread and new
+		messageHeader->flagUnread = true;
+		messageHeader->flagNew	  = true;
+
+		result = nn::cec::CTR::detail::WriteMessageWithHmac(messageHeader->cecTitleId,
 															nn::cec::CEC_BOXTYPE_INBOX,
-															header->messageId,
-															sizeof(header->messageId),
-															data,
-															header->messSize,
+															messageHeader->messageId,
+															nn::cec::CEC_SIZEOF_MESSAGEID,
+															messageBuffer,
+															messageHeader->messSize,
 															reinterpret_cast<u8*>(messageBoxInfo.hmacKey));
 		if (!result.IsSuccess())
 		{
@@ -144,16 +259,18 @@ WriteMessageToBox(nn::cec::MessageBox& messageBox, u8* data)
 			return result;
 		}
 
-		// Check exists
-		u8* buffer = reinterpret_cast<u8*>(std::malloc(header->messSize));
-		result	   = nn::cec::CTR::detail::ReadMessage(header->cecTitleId,
+		NN_LOG_INFO("Checking if message was written for title %08X", messageHeader->cecTitleId);
+
+		u8 temp = 0;
+
+		// Determine if the message was written (sometimes WriteMessage will not error even if it actually errored)
+		result = nn::cec::CTR::detail::ReadMessage(messageHeader->cecTitleId,
 												   nn::cec::CEC_BOXTYPE_INBOX,
-												   header->messageId,
-												   sizeof(header->messageId),
+												   messageHeader->messageId,
+												   nn::cec::CEC_SIZEOF_MESSAGEID,
 												   &readLength,
-												   buffer,
-												   header->messSize);
-		std::free(buffer);
+												   &temp,
+												   1);
 		if (result.IsFailure())
 		{
 			NN_LOG_ERROR("Failed to read message:");
@@ -163,30 +280,44 @@ WriteMessageToBox(nn::cec::MessageBox& messageBox, u8* data)
 		}
 	}
 
-	u8* boxData = reinterpret_cast<u8*>(std::malloc(maxBoxSize));
-	result		= nn::cec::CTR::detail::OpenAndReadFile(boxData,
-													maxBoxSize,
-													&readLength,
-													messageBox.GetCurrentCecTitleId(),
-													nn::cec::CTR::FILETYPE_INBOX_INFO,
-													nn::cec::CTR::FILEOPT_READ | nn::cec::CTR::FILEOPT_NOCHECK);
+	NN_LOG_INFO("Re-opening inbox info for title %08X to check if metadata needs to be updated", messageHeader->cecTitleId);
+
+	// Re-open the message box info file to determine if metadata needs to be updated
+	boxBuffer = reinterpret_cast<u8*>(std::malloc(maxBoxSize));
+	if (boxBuffer == NULL)
+	{
+		NN_LOG_ERROR("Failed to allocate memory for box buffer");
+
+		return np::api::ResultMemoryAllocationFailed();
+	}
+
+	NN_LOG_INFO("Opening and reading inbox info for title %08X", messageHeader->cecTitleId);
+
+	result = nn::cec::CTR::detail::OpenAndReadFile(boxBuffer,
+												   maxBoxSize,
+												   &readLength,
+												   messageHeader->cecTitleId,
+												   nn::cec::CTR::FILETYPE_INBOX_INFO,
+												   nn::cec::CTR::FILEOPT_READ | nn::cec::CTR::FILEOPT_NOCHECK);
 	if (result.IsFailure())
 	{
 		NN_LOG_ERROR("Failed to open and read inbox info:");
 		NN_DBG_PRINT_RESULT(result);
 
-		std::free(boxData);
+		std::free(boxBuffer);
 
 		return result;
 	}
 
-	nn::cec::CecBoxInfoHeader* boxHeaderInfo = reinterpret_cast<nn::cec::CecBoxInfoHeader*>(boxData);
-	nn::cec::CecMessageHeader* messages		 = reinterpret_cast<nn::cec::CecMessageHeader*>(boxData + sizeof(nn::cec::CecBoxInfoHeader));
+	boxInfoHeader = reinterpret_cast<nn::cec::CecBoxInfoHeader*>(boxBuffer);
+	boxMessages	  = reinterpret_cast<nn::cec::CecMessageHeader*>(boxBuffer + sizeof(nn::cec::CecBoxInfoHeader));
+
+	NN_LOG_INFO("Checking if message already exists in inbox for title %08X", messageHeader->cecTitleId);
 
 	bool foundBox = false;
-	for (int i = 0; i < boxHeaderInfo->messNum; i++)
+	for (int i = 0; i < boxInfoHeader->messNum; i++)
 	{
-		if (0 == std::memcmp(messages[i].messageId, header->messageId, nn::cec::CEC_SIZEOF_MESSAGEID))
+		if (0 == std::memcmp(boxMessages[i].messageId, messageHeader->messageId, nn::cec::CEC_SIZEOF_MESSAGEID))
 		{
 			foundBox = true;
 			break;
@@ -195,16 +326,25 @@ WriteMessageToBox(nn::cec::MessageBox& messageBox, u8* data)
 
 	if (!foundBox)
 	{
-		void* address = boxData + sizeof(nn::cec::CecBoxInfoHeader) + (boxHeaderInfo->messNum * sizeof(nn::cec::CecMessageHeader));
-		std::memcpy(address, data, sizeof(nn::cec::CecMessageHeader));
+		NN_LOG_INFO("Writing message metadata to inbox for title %08X", messageHeader->cecTitleId);
 
-		boxHeaderInfo->messNum++;
-		boxHeaderInfo->boxInfoSize += sizeof(nn::cec::CecMessageHeader);
-		boxHeaderInfo->boxSize += header->messSize;
+		void* address = boxBuffer + sizeof(nn::cec::CecBoxInfoHeader) + (boxInfoHeader->messNum * sizeof(nn::cec::CecMessageHeader));
+		std::memcpy(address, messageBuffer, sizeof(nn::cec::CecMessageHeader));
 
-		result = nn::cec::CTR::detail::OpenAndWriteFile(boxData,
-														boxHeaderInfo->boxInfoSize,
-														messageBox.GetCurrentCecTitleId(),
+		NN_LOG_INFO(
+			"Updating inbox info and writing to file for title %08X, current messages: %d, current box info size: %d, current box size: %d",
+			messageHeader->cecTitleId,
+			boxInfoHeader->messNum,
+			boxInfoHeader->boxInfoSize,
+			boxInfoHeader->boxSize);
+
+		boxInfoHeader->messNum++;
+		boxInfoHeader->boxInfoSize += sizeof(nn::cec::CecMessageHeader);
+		boxInfoHeader->boxSize += messageHeader->messSize;
+
+		result = nn::cec::CTR::detail::OpenAndWriteFile(boxBuffer,
+														boxInfoHeader->boxInfoSize,
+														messageHeader->cecTitleId,
 														nn::cec::CTR::FILETYPE_INBOX_INFO,
 														nn::cec::CTR::FILEOPT_WRITE | nn::cec::CTR::FILEOPT_NOCHECK);
 		if (result.IsFailure())
@@ -212,24 +352,39 @@ WriteMessageToBox(nn::cec::MessageBox& messageBox, u8* data)
 			NN_LOG_ERROR("Failed to write inbox info:");
 			NN_DBG_PRINT_RESULT(result);
 
-			std::free(boxData);
+			std::free(boxBuffer);
 
 			return result;
 		}
 	}
 
-	std::free(boxData);
+	std::free(boxBuffer);
 
+	// Update the green notification status of the title
 	{
+		NN_LOG_INFO("Updating title notification status for title %08X", messageHeader->cecTitleId);
+
+		// Re-open the message box info in case it was updated
 		nn::cec::MessageBoxInfo messageBoxInfo;
-		np::util::GetCecMessageBoxInfo(messageBox.GetCurrentCecTitleId(), &messageBoxInfo);
+		result = np::util::GetCecMessageBoxInfo(messageHeader->cecTitleId, &messageBoxInfo);
+		if (result.IsFailure())
+		{
+			NN_LOG_ERROR("Failed to get message box info:");
+			NN_DBG_PRINT_RESULT(result);
+
+			return result;
+		}
+
+		NN_LOG_INFO("Updating box information and writing to file for title %08X", messageHeader->cecTitleId);
 
 		messageBoxInfo.lastReceived = nn::fnd::DateTime::GetNow().GetParameters();
-		messageBoxInfo.flag3		= true;
+
+		// Set the unread flag (on the original NetPass, this is called flag3)
+		messageBoxInfo.flag1 = true;
 
 		result = nn::cec::CTR::detail::OpenAndWriteFile(reinterpret_cast<u8*>(&messageBoxInfo),
 														sizeof(nn::cec::MessageBoxInfo),
-														messageBox.GetCurrentCecTitleId(),
+														messageHeader->cecTitleId,
 														nn::cec::CTR::FILETYPE_MESSAGE_BOX_INFO,
 														nn::cec::CTR::FILEOPT_WRITE | nn::cec::CTR::FILEOPT_NOCHECK);
 		if (result.IsFailure())
@@ -283,23 +438,20 @@ DoDownloadBoxes()
 		u8*				 titleIdStr = messageBoxList.DirName[i];
 		nn::cec::TitleId titleId	= std::strtol(reinterpret_cast<const char*>(titleIdStr), NULL, 16);
 
-		nn::cec::MessageBox messageBox;
-		result = np::util::OpenCecMessageBox(titleId, &messageBox);
-		if (!result.IsSuccess())
+		nn::cec::CecBoxInfoHeader boxInfo;
+		result = np::util::GetCecMessageBoxHeader(titleId, nn::cec::CEC_BOXTYPE_INBOX, &boxInfo);
+		if (result.IsFailure())
 		{
-			NN_LOG_ERROR("Failed to open message box:");
+			NN_LOG_ERROR("Failed to get message box header:");
 			NN_DBG_PRINT_RESULT(result);
 
-			PRINTF_DISPLAY1("Error downloading messages");
+			PRINTF_DISPLAY1("Error downloading messages for %s", titleIdStr);
 
-			s_WaitForDownloadEvent.Signal();
-			s_WaitForDownloadEvent.ClearSignal();
-
-			return;
+			continue;
 		}
 
-		u32 boxMessages = messageBox.GetBoxMessageNum(nn::cec::CEC_BOXTYPE_INBOX);
-		u32 maxMessages = messageBox.GetBoxMessageNumMax(nn::cec::CEC_BOXTYPE_INBOX);
+		u32 boxMessages = boxInfo.messNum;
+		u32 maxMessages = boxInfo.messNumMax;
 
 		PRINTF_DISPLAY1("Checking inbox %s", titleIdStr);
 
@@ -339,7 +491,7 @@ DoDownloadBoxes()
 			{
 				PRINTF_DISPLAY1("Got message for %s", titleIdStr);
 
-				result = WriteMessageToBox(messageBox, response);
+				result = WriteMessageToBox(response);
 				if (result.IsFailure())
 				{
 					NN_LOG_ERROR("Failed to write message:");
@@ -359,8 +511,6 @@ DoDownloadBoxes()
 		}
 
 		np::scene::GetRequestPassesScene()->UpdateTitleText(titleId, boxMessages, maxMessages);
-
-		messageBox.CloseMessageBox(true);  // Do not commit message box, it will overwrite our update.
 	}
 
 	s_WaitForDownloadEvent.Signal();

@@ -44,7 +44,7 @@ namespace np { namespace util {
 		if (boxType == nn::cec::CEC_BOXTYPE_INBOX)
 		{
 			return nn::cec::CTR::detail::OpenAndReadFile(reinterpret_cast<u8*>(pOut),
-														 sizeof(nn::cec::CecBoxInfoHeader),
+														 nn::cec::CEC_SIZEOF_BOXINFO_HEADER,
 														 &readLength,
 														 titleId,
 														 nn::cec::CTR::FILETYPE_INBOX_INFO,
@@ -53,7 +53,7 @@ namespace np { namespace util {
 		else
 		{
 			return nn::cec::CTR::detail::OpenAndReadFile(reinterpret_cast<u8*>(pOut),
-														 sizeof(nn::cec::CecBoxInfoHeader),
+														 nn::cec::CEC_SIZEOF_BOXINFO_HEADER,
 														 &readLength,
 														 titleId,
 														 nn::cec::CTR::FILETYPE_OUTBOX_INFO,

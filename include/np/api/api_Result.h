@@ -77,6 +77,15 @@ namespace np { namespace api {
 						   nn::Result::MODULE_APPLICATION,
 						   nn::Result::DESCRIPTION_NO_DATA);
 
+	/*!
+		@brief Result returned when memory allocation fails.
+	*/
+	NN_DEFINE_RESULT_CONST(ResultMemoryAllocationFailed,
+						   nn::Result::LEVEL_PERMANENT,
+						   nn::Result::SUMMARY_OUT_OF_RESOURCE,
+						   nn::Result::MODULE_APPLICATION,
+						   nn::Result::DESCRIPTION_NO_DATA);
+
 }}	// namespace np::api
 
 #endif	// NP_API_API_RESULT_H_

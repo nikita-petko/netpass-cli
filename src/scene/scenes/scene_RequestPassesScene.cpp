@@ -2,9 +2,9 @@
 #include <np/scene/scenes/scene_RequestPassesScene.h>
 
 #include <np/api.h>
-#include <np/util.h>
 #include <np/config.h>
 #include <np/memory.h>
+#include <np/util.h>
 
 #include <nn/applet.h>
 #include <nn/http.h>
@@ -86,6 +86,15 @@ namespace np { namespace scene {
 
 			char8* title = reinterpret_cast<char8*>(std::malloc(titleLength));
 			std::wcstombs(title, title16, titleLength);
+
+			// If the title cannot be converted to a string (i.e. it contains non-ASCII characters), use the title ID instead
+			if (*title == NULL)
+			{
+				std::free(title);
+
+				title = reinterpret_cast<char8*>(std::malloc(sizeof(messageBoxList.DirName[i])));
+				std::memcpy(title, messageBoxList.DirName[i], sizeof(messageBoxList.DirName[i]));
+			}
 
 			u32 messageCount = messageBox.GetBoxMessageNum(nn::cec::CEC_BOXTYPE_INBOX);
 			u32 maxMessages	 = messageBox.GetBoxMessageNumMax(nn::cec::CEC_BOXTYPE_INBOX);
@@ -244,7 +253,7 @@ namespace np { namespace scene {
 
 		if (messageCount + s_Passes > maxMessages)
 		{
-			PRINTF_DISPLAY1("The inbox will be full after this request");
+			PRINTF_DISPLAY1("The inbox will be full after this.");
 			PRINTF_DISPLAY1("Changing to %d", maxMessages - messageCount);
 
 			s_Passes = maxMessages - messageCount;
