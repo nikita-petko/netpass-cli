@@ -77,15 +77,14 @@ namespace np { namespace scene {
 
 			nn::cec::TitleId titleId = std::strtoul(reinterpret_cast<const char*>(messageBoxList.DirName[i]), NULL, 16);
 
-			nn::cec::MessageBox messageBox;
-			NN_PANIC_IF_FAILED(np::util::OpenCecMessageBox(titleId, &messageBox));
+			size_t titleNameSize;
+			NN_PANIC_IF_FAILED(np::util::GetTitleName(titleId, NULL, &titleNameSize));
 
-			size_t	titleLength = messageBox.GetMessageBoxDataSize(nn::cec::BOXDATA_TYPE_NAME_1);
-			char16* title16		= reinterpret_cast<char16*>(std::malloc(titleLength));
-			NN_PANIC_IF_FAILED(messageBox.GetMessageBoxData(nn::cec::BOXDATA_TYPE_NAME_1, title16, titleLength));
+			char16* title16 = reinterpret_cast<char16*>(std::malloc(titleNameSize));
+			NN_PANIC_IF_FAILED(np::util::GetTitleName(titleId, title16, &titleNameSize));
 
-			char8* title = reinterpret_cast<char8*>(std::malloc(titleLength));
-			std::wcstombs(title, title16, titleLength);
+			char8* title = reinterpret_cast<char8*>(std::malloc(titleNameSize));
+			std::wcstombs(title, title16, titleNameSize);
 
 			// If the title cannot be converted to a string (i.e. it contains non-ASCII characters), use the title ID instead
 			if (*title == NULL)
@@ -96,12 +95,15 @@ namespace np { namespace scene {
 				std::memcpy(title, messageBoxList.DirName[i], sizeof(messageBoxList.DirName[i]));
 			}
 
-			u32 messageCount = messageBox.GetBoxMessageNum(nn::cec::CEC_BOXTYPE_INBOX);
-			u32 maxMessages	 = messageBox.GetBoxMessageNumMax(nn::cec::CEC_BOXTYPE_INBOX);
+			nn::cec::CecBoxInfoHeader boxInfo;
+			NN_PANIC_IF_FAILED(np::util::GetCecMessageBoxHeader(titleId, nn::cec::CEC_BOXTYPE_INBOX, &boxInfo));
+
+			u32 messageCount = boxInfo.messNum;
+			u32 maxMessages	 = boxInfo.messNumMax;
 
 			// Allocate a buffer to account for "({count}/{max}) " + title
-			char8* titleWithCount = reinterpret_cast<char8*>(std::malloc(titleLength + 16));
-			nn::nstd::TSNPrintf(titleWithCount, titleLength + 16, "(%d/%d) %s", messageCount, maxMessages, title);
+			char8* titleWithCount = reinterpret_cast<char8*>(std::malloc(titleNameSize + 16));
+			nn::nstd::TSNPrintf(titleWithCount, titleNameSize + 16, "(%d/%d) %s", messageCount, maxMessages, title);
 
 			m_Options[i]->text	   = titleWithCount;
 			m_Options[i]->callback = reinterpret_cast<OptionCallback>(&RequestPassesScene::OnTitleSelected);
@@ -113,7 +115,6 @@ namespace np { namespace scene {
 			m_IndexToTitleNameMap[i] = title;
 
 			std::free(title16);
-			messageBox.CloseMessageBox(true);
 		}
 
 		ADD_BLANK_OPTION(messageBoxList.DirNum);
@@ -151,22 +152,22 @@ namespace np { namespace scene {
 
 		RequestPassesScene* requestPassesScene = GetRequestPassesScene();
 		nn::cec::TitleId	titleId			   = requestPassesScene->m_IndexToTitleIdMap[requestPassesScene->m_SelectedOption];
-		nn::cec::MessageBox messageBox;
-		result = np::util::OpenCecMessageBox(titleId, &messageBox);
+
+		nn::cec::CecBoxInfoHeader boxInfo;
+		result = np::util::GetCecMessageBoxHeader(titleId, nn::cec::CEC_BOXTYPE_INBOX, &boxInfo);
 		if (result.IsFailure())
 		{
-			NN_LOG_ERROR("Failed to open message box:");
+			NN_LOG_ERROR("Failed to get message box header:");
 			NN_DBG_PRINT_RESULT(result);
 
-			np::graphics::DrawFatality("ERROR OPENING MESSAGE BOX");
-			PRINTF_DISPLAY1("Failed to open message box");
+			np::graphics::DrawFatality("ERROR GETTING MESSAGE BOX HEADER");
+			PRINTF_DISPLAY1("Failed to get message box header");
 
 			return;
 		}
 
-		u32 maxMessages	 = messageBox.GetBoxMessageNumMax(nn::cec::CEC_BOXTYPE_INBOX);
-		u32 messageCount = messageBox.GetBoxMessageNum(nn::cec::CEC_BOXTYPE_INBOX);
-		messageBox.CloseMessageBox(true);
+		u32 maxMessages	 = boxInfo.messNumMax;
+		u32 messageCount = boxInfo.messNum;
 
 		if (messageCount == maxMessages)
 		{

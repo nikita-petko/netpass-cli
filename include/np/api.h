@@ -3,7 +3,6 @@
 
 #if defined(NN_PLATFORM_CTR)
 #	ifdef __cplusplus
-#		include <np/api/api_Const.h>
 #		include <np/api/api_Result.h>
 #		include <np/api/api_Location.h>
 #		include <np/api/api_Boxes.h>

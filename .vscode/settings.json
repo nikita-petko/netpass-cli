@@ -2,11 +2,13 @@
     "C_Cpp.loggingLevel": "Debug",
     
     "files.associations": {
+        "*.yml": "github-actions-workflow",
         "*.rsf": "yaml",
         "*.bsf": "yaml",
         "*.om": "shellscript",
         "OMakeroot": "shellscript",
-        "OMakefile": "shellscript"
+        "OMakefile": "shellscript",
+        "new": "cpp"
     },
 
     "explorer.fileNesting.enabled": true,
