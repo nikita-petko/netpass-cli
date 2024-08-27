@@ -9,6 +9,169 @@
 
 #include "api/api_Urls.h"
 
+namespace {
+
+nn::Result
+UpdateOutbox(u8* messageBuffer)
+{
+	nn::Result result;
+	size_t	   readLength = 0;
+
+	NN_LOG_INFO("Updating outbox, message buffer: %p", messageBuffer);
+
+	// Sanity check for message validity
+	if (!np::util::IsValidCecMessage(messageBuffer))
+	{
+		NN_LOG_ERROR("Invalid message");
+
+		return np::api::ResultInvalidCecMessage();
+	}
+
+	nn::cec::CecMessageHeader* messageHeader = reinterpret_cast<nn::cec::CecMessageHeader*>(messageBuffer);
+
+	// First allocation for just the header, in order to forward allocate the full size of the message box
+	NN_LOG_INFO("Determining message box size for title %08X", messageHeader->cecTitleId);
+
+	u8* boxBuffer = reinterpret_cast<u8*>(std::malloc(nn::cec::CEC_SIZEOF_BOXINFO_HEADER));
+	if (boxBuffer == NULL)
+	{
+		NN_LOG_ERROR("Failed to allocate memory for box buffer");
+
+		return np::api::ResultMemoryAllocationFailed();
+	}
+
+	NN_LOG_INFO("Opening and reading inbox info for title %08X", messageHeader->cecTitleId);
+
+	result = nn::cec::detail::OpenAndReadFile(boxBuffer,
+											  nn::cec::CEC_SIZEOF_BOXINFO_HEADER,
+											  &readLength,
+											  messageHeader->cecTitleId,
+											  nn::cec::FILETYPE_OUTBOX_INFO,
+											  nn::cec::FILEOPT_READ | nn::cec::FILEOPT_NOCHECK);
+	if (result.IsFailure())
+	{
+		NN_LOG_ERROR("Failed to open and read inbox info:");
+		NN_DBG_PRINT_RESULT(result);
+
+		std::free(boxBuffer);
+
+		return result;
+	}
+
+	// Calculate the full size of the message box
+	u32 maxMessages = reinterpret_cast<nn::cec::CecBoxInfoHeader*>(boxBuffer)->messNumMax;
+	u32 maxBoxSize	= nn::cec::CEC_SIZEOF_BOXINFO_HEADER + (maxMessages * sizeof(nn::cec::CecMessageHeader));
+
+	NN_LOG_INFO("Allocating memory for full message box, max messages: %d, max size: %d", maxMessages, maxBoxSize);
+
+	std::free(boxBuffer);
+
+	// Allocate the full sized message box
+	boxBuffer = reinterpret_cast<u8*>(std::malloc(maxBoxSize));
+	if (boxBuffer == NULL)
+	{
+		NN_LOG_ERROR("Failed to allocate memory for box buffer");
+
+		return np::api::ResultMemoryAllocationFailed();
+	}
+
+	// Open the inbox info file again to check if the message already exists
+	NN_LOG_INFO("Opening and reading inbox info for title %08X", messageHeader->cecTitleId);
+
+	result = nn::cec::detail::OpenAndReadFile(boxBuffer,
+											  maxBoxSize,
+											  &readLength,
+											  messageHeader->cecTitleId,
+											  nn::cec::FILETYPE_OUTBOX_INFO,
+											  nn::cec::FILEOPT_READ | nn::cec::FILEOPT_NOCHECK);
+	if (result.IsFailure())
+	{
+		NN_LOG_ERROR("Failed to open and read inbox info:");
+		NN_DBG_PRINT_RESULT(result);
+
+		std::free(boxBuffer);
+
+		return result;
+	}
+
+	nn::cec::CecBoxInfoHeader* boxInfoHeader = reinterpret_cast<nn::cec::CecBoxInfoHeader*>(boxBuffer);
+	nn::cec::CecMessageHeader* boxMessages	 = reinterpret_cast<nn::cec::CecMessageHeader*>(boxBuffer + sizeof(nn::cec::CecBoxInfoHeader));
+
+	u32 messageIndex = 0;
+	for (int i = 0; i < boxInfoHeader->messNum; i++)
+	{
+		if (0 == std::memcmp(boxMessages[i].messageId, messageHeader->messageId, nn::cec::CEC_SIZEOF_MESSAGEID))
+		{
+			messageIndex = i;
+
+			break;
+		}
+	}
+
+	if (messageIndex < 0)
+	{
+		NN_LOG_ERROR("Message not found in outbox");
+
+		std::free(boxBuffer);
+
+		return np::api::ResultMessageNotFound();
+	}
+
+	// Update the message
+	std::memcpy(&boxMessages[messageIndex], messageHeader, sizeof(nn::cec::CecMessageHeader));
+
+	// Write the updated message box
+	result = nn::cec::detail::OpenAndWriteFile(boxBuffer,
+											   boxInfoHeader->boxInfoSize,
+											   messageHeader->cecTitleId,
+											   nn::cec::FILETYPE_OUTBOX_INFO,
+											   nn::cec::FILEOPT_WRITE | nn::cec::FILEOPT_NOCHECK);
+	if (result.IsFailure())
+	{
+		NN_LOG_ERROR("Failed to write outbox info:");
+		NN_DBG_PRINT_RESULT(result);
+
+		std::free(boxBuffer);
+
+		return result;
+	}
+
+	std::free(boxBuffer);
+
+	// Fetch the Hmac and update the message
+	NN_LOG_INFO("Getting HMAC key for title %08X", messageHeader->cecTitleId);
+
+	// Open the message box info file to fetch the HMAC key
+	nn::cec::MessageBoxInfo messageBoxInfo;
+	result = np::util::GetCecMessageBoxInfo(messageHeader->cecTitleId, &messageBoxInfo);
+	if (result.IsFailure())
+	{
+		NN_LOG_ERROR("Failed to get message box info:");
+		NN_DBG_PRINT_RESULT(result);
+
+		return result;
+	}
+
+	result = nn::cec::detail::WriteMessageWithHmac(messageHeader->cecTitleId,
+												   nn::cec::CEC_BOXTYPE_OUTBOX,
+												   messageHeader->messageId,
+												   nn::cec::CEC_SIZEOF_MESSAGEID,
+												   messageBuffer,
+												   messageHeader->messSize,
+												   reinterpret_cast<u8*>(messageBoxInfo.hmacKey));
+	if (!result.IsSuccess())
+	{
+		NN_LOG_ERROR("Failed to write message");
+		NN_DBG_PRINT_RESULT(result);
+
+		return result;
+	}
+
+	return nn::ResultSuccess();
+}
+
+}  // namespace
+
 namespace np { namespace api {
 
 	nn::Result UploadOutboxes(void)
@@ -90,9 +253,18 @@ namespace np { namespace api {
 				return result;
 			}
 
-			u32		titleNameSize = messageBox.GetMessageBoxDataSize(nn::cec::CTR::BOXDATA_TYPE_NAME_1);
-			char16* titleName	  = reinterpret_cast<char16*>(std::malloc(titleNameSize));
-			result				  = messageBox.GetMessageBoxData(nn::cec::CTR::BOXDATA_TYPE_NAME_1, titleName, titleNameSize);
+			size_t titleNameSize;
+			result = np::util::GetTitleName(titleId, NULL, &titleNameSize);
+			if (!result.IsSuccess())
+			{
+				NN_LOG_ERROR("Failed to get title name size:");
+				NN_DBG_PRINT_RESULT(result);
+
+				return result;
+			}
+
+			char16* titleName = reinterpret_cast<char16*>(std::malloc(titleNameSize));
+			result			  = np::util::GetTitleName(titleId, titleName, &titleNameSize);
 			if (!result.IsSuccess())
 			{
 				NN_LOG_ERROR("Failed to get title name:");
@@ -176,7 +348,7 @@ namespace np { namespace api {
 					if (sendCount < message.GetSendCount())
 					{
 						message.SetSendCount(sendCount);
-						result = messageBox.WriteMessage(message, nn::cec::CEC_BOXTYPE_OUTBOX, messageId);
+						result = ::UpdateOutbox(messageBuffer);
 						if (!result.IsSuccess())
 						{
 							NN_LOG_ERROR("Failed to update sendCount:");
@@ -196,7 +368,7 @@ namespace np { namespace api {
 			NN_LOG_INFO("Closing message box for title %s", titleIdStr);
 
 			std::free(titleBase64);
-			messageBox.CloseMessageBox();
+			messageBox.CloseMessageBox(true);
 		}
 
 		return result;

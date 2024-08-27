@@ -21,52 +21,6 @@ nn::fnd::TimeSpan s_DownloadInterval = nn::fnd::TimeSpan::FromSeconds(30);
 nn::fnd::TimeSpan s_DownloadInterval = nn::fnd::TimeSpan::FromMinutes(5);
 #endif
 
-bool
-IsValidMessage(u8* messageBuffer)
-{
-	nn::cec::CecMessageHeader* header = reinterpret_cast<nn::cec::CecMessageHeader*>(messageBuffer);
-
-	if (header->magic16 != nn::cec::MESSAGE_MAGIC)
-	{
-		NN_LOG_ERROR("Invalid magic16");
-
-		return false;
-	}
-	if (header->messSize != header->headerSize + header->bodySize + 0x20)
-	{
-		NN_LOG_ERROR("Invalid message size, expected %d, got %d", header->headerSize + header->bodySize + 0x20, header->messSize);
-
-		return false;
-	}
-	if (header->messSize > np::api::MESSAGE_MAX_SIZE)
-	{
-		NN_LOG_ERROR("Message size too large, expected %d, got %d", np::api::MESSAGE_MAX_SIZE, header->messSize);
-
-		return false;
-	}
-
-	if (header->bodySize <= 0x20)
-	{
-		u8	b	= 0;
-		u8* ptr = messageBuffer + sizeof(nn::cec::CecMessageHeader);
-
-		for (int i = 0; i < header->bodySize; i++)
-		{
-			b |= *ptr;
-			ptr++;
-		}
-
-		if (b == 0)
-		{
-			NN_LOG_ERROR("Message body is empty");
-
-			return false;
-		}
-	}
-
-	return true;
-}
-
 nn::Result
 WriteMessageToBox(u8* messageBuffer)
 {
@@ -76,7 +30,7 @@ WriteMessageToBox(u8* messageBuffer)
 	NN_LOG_INFO("Writing message to box, message buffer: %p", messageBuffer);
 
 	// Sanity check for message validity
-	if (!IsValidMessage(messageBuffer))
+	if (!np::util::IsValidCecMessage(messageBuffer))
 	{
 		NN_LOG_ERROR("Invalid message");
 
@@ -106,8 +60,8 @@ WriteMessageToBox(u8* messageBuffer)
 											  nn::cec::CEC_SIZEOF_BOXINFO_HEADER,
 											  &readLength,
 											  messageHeader->cecTitleId,
-											  nn::cec::CTR::FILETYPE_INBOX_INFO,
-											  nn::cec::CTR::FILEOPT_READ | nn::cec::CTR::FILEOPT_NOCHECK);
+											  nn::cec::FILETYPE_INBOX_INFO,
+											  nn::cec::FILEOPT_READ | nn::cec::FILEOPT_NOCHECK);
 	if (result.IsFailure())
 	{
 		NN_LOG_ERROR("Failed to open and read inbox info:");
@@ -142,8 +96,8 @@ WriteMessageToBox(u8* messageBuffer)
 											  maxBoxSize,
 											  &readLength,
 											  messageHeader->cecTitleId,
-											  nn::cec::CTR::FILETYPE_INBOX_INFO,
-											  nn::cec::CTR::FILEOPT_READ | nn::cec::CTR::FILEOPT_NOCHECK);
+											  nn::cec::FILETYPE_INBOX_INFO,
+											  nn::cec::FILEOPT_READ | nn::cec::FILEOPT_NOCHECK);
 	if (result.IsFailure())
 	{
 		NN_LOG_ERROR("Failed to open and read inbox info:");
@@ -244,7 +198,7 @@ WriteMessageToBox(u8* messageBuffer)
 		messageHeader->flagUnread = true;
 		messageHeader->flagNew	  = true;
 
-		result = nn::cec::CTR::detail::WriteMessageWithHmac(messageHeader->cecTitleId,
+		result = nn::cec::detail::WriteMessageWithHmac(messageHeader->cecTitleId,
 															nn::cec::CEC_BOXTYPE_INBOX,
 															messageHeader->messageId,
 															nn::cec::CEC_SIZEOF_MESSAGEID,
@@ -264,7 +218,7 @@ WriteMessageToBox(u8* messageBuffer)
 		u8 temp = 0;
 
 		// Determine if the message was written (sometimes WriteMessage will not error even if it actually errored)
-		result = nn::cec::CTR::detail::ReadMessage(messageHeader->cecTitleId,
+		result = nn::cec::detail::ReadMessage(messageHeader->cecTitleId,
 												   nn::cec::CEC_BOXTYPE_INBOX,
 												   messageHeader->messageId,
 												   nn::cec::CEC_SIZEOF_MESSAGEID,
@@ -293,12 +247,12 @@ WriteMessageToBox(u8* messageBuffer)
 
 	NN_LOG_INFO("Opening and reading inbox info for title %08X", messageHeader->cecTitleId);
 
-	result = nn::cec::CTR::detail::OpenAndReadFile(boxBuffer,
+	result = nn::cec::detail::OpenAndReadFile(boxBuffer,
 												   maxBoxSize,
 												   &readLength,
 												   messageHeader->cecTitleId,
-												   nn::cec::CTR::FILETYPE_INBOX_INFO,
-												   nn::cec::CTR::FILEOPT_READ | nn::cec::CTR::FILEOPT_NOCHECK);
+												   nn::cec::FILETYPE_INBOX_INFO,
+												   nn::cec::FILEOPT_READ | nn::cec::FILEOPT_NOCHECK);
 	if (result.IsFailure())
 	{
 		NN_LOG_ERROR("Failed to open and read inbox info:");
@@ -342,11 +296,11 @@ WriteMessageToBox(u8* messageBuffer)
 		boxInfoHeader->boxInfoSize += sizeof(nn::cec::CecMessageHeader);
 		boxInfoHeader->boxSize += messageHeader->messSize;
 
-		result = nn::cec::CTR::detail::OpenAndWriteFile(boxBuffer,
+		result = nn::cec::detail::OpenAndWriteFile(boxBuffer,
 														boxInfoHeader->boxInfoSize,
 														messageHeader->cecTitleId,
-														nn::cec::CTR::FILETYPE_INBOX_INFO,
-														nn::cec::CTR::FILEOPT_WRITE | nn::cec::CTR::FILEOPT_NOCHECK);
+														nn::cec::FILETYPE_INBOX_INFO,
+														nn::cec::FILEOPT_WRITE | nn::cec::FILEOPT_NOCHECK);
 		if (result.IsFailure())
 		{
 			NN_LOG_ERROR("Failed to write inbox info:");
@@ -382,11 +336,11 @@ WriteMessageToBox(u8* messageBuffer)
 		// Set the unread flag (on the original NetPass, this is called flag3)
 		messageBoxInfo.flag1 = true;
 
-		result = nn::cec::CTR::detail::OpenAndWriteFile(reinterpret_cast<u8*>(&messageBoxInfo),
+		result = nn::cec::detail::OpenAndWriteFile(reinterpret_cast<u8*>(&messageBoxInfo),
 														sizeof(nn::cec::MessageBoxInfo),
 														messageHeader->cecTitleId,
-														nn::cec::CTR::FILETYPE_MESSAGE_BOX_INFO,
-														nn::cec::CTR::FILEOPT_WRITE | nn::cec::CTR::FILEOPT_NOCHECK);
+														nn::cec::FILETYPE_MESSAGE_BOX_INFO,
+														nn::cec::FILEOPT_WRITE | nn::cec::FILEOPT_NOCHECK);
 		if (result.IsFailure())
 		{
 			NN_LOG_ERROR("Failed to write message box info:");
@@ -471,7 +425,7 @@ DoDownloadBoxes()
 		s32 statusCode = 200;
 		while (statusCode == 200 && boxMessages < maxMessages)
 		{
-			u8 response[np::api::MESSAGE_MAX_SIZE];
+			u8 response[np::util::CEC_MESSAGE_MAX_SIZE];
 			result = np::http::Get(url, response, sizeof(response), &statusCode);
 
 			if (result.IsFailure() && result != nn::http::ResultBodyBufShortage())

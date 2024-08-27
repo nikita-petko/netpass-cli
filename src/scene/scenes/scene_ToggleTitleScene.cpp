@@ -30,15 +30,14 @@ namespace np { namespace scene {
 
 			nn::cec::TitleId titleId = std::strtoul(reinterpret_cast<const char*>(messageBoxList.DirName[i]), NULL, 16);
 
-			nn::cec::MessageBox messageBox;
-			NN_PANIC_IF_FAILED(np::util::OpenCecMessageBox(titleId, &messageBox));
+			size_t titleNameSize;
+			NN_PANIC_IF_FAILED(np::util::GetTitleName(titleId, NULL, &titleNameSize));
 
-			size_t	titleLength = messageBox.GetMessageBoxDataSize(nn::cec::BOXDATA_TYPE_NAME_1);
-			char16* title16		= reinterpret_cast<char16*>(std::malloc(titleLength));
-			NN_PANIC_IF_FAILED(messageBox.GetMessageBoxData(nn::cec::BOXDATA_TYPE_NAME_1, title16, titleLength));
+			char16* title16 = reinterpret_cast<char16*>(std::malloc(titleNameSize));
+			NN_PANIC_IF_FAILED(np::util::GetTitleName(titleId, title16, &titleNameSize));
 
-			char8* title = reinterpret_cast<char8*>(std::malloc(titleLength));
-			std::wcstombs(title, title16, titleLength);
+			char8* title = reinterpret_cast<char8*>(std::malloc(titleNameSize));
+			std::wcstombs(title, title16, titleNameSize);
 
 			// If the title cannot be converted to a string (i.e. it contains non-ASCII characters), use the title ID instead
 			if (*title == NULL)
@@ -60,7 +59,6 @@ namespace np { namespace scene {
 			m_IndexToTitleIdMap[i] = titleId;
 
 			std::free(title16);
-			messageBox.CloseMessageBox(true);
 		}
 
 		ADD_BLANK_OPTION(messageBoxList.DirNum);
